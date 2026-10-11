@@ -1,0 +1,9 @@
+import { z } from 'zod';
+import { apiError, created, ok, parseJson } from '@/lib/api';
+import { ApiError } from '@/lib/api';
+import { requireTournamentManager } from '@/lib/access';
+import { prisma } from '@/lib/prisma';
+
+const venueSchema = z.object({ name: z.string().trim().min(2).max(100), address: z.string().trim().min(2).max(300), city: z.string().trim().min(2).max(100), country: z.string().trim().min(2).max(100), directions: z.string().trim().max(1000).optional(), courts: z.array(z.string().trim().min(1).max(80)).min(1).max(50) });
+export async function GET(_: Request, { params }: { params: Promise<{ tournamentId: string }> }) { try { const { tournamentId } = await params; await requireTournamentManager(tournamentId); return ok(await prisma.venue.findMany({ where: { tournamentId }, include: { courts: true }, orderBy: { name: 'asc' } })); } catch (error) { return apiError(error); } }
+export async function POST(request: Request, { params }: { params: Promise<{ tournamentId: string }> }) { try { const { tournamentId } = await params; const { user, tournament } = await requireTournamentManager(tournamentId); const input = await parseJson(request, venueSchema); if (tournament.structureLockedAt) throw new ApiError(409, 'STRUCTURE_LOCKED', 'Venues cannot be changed after tournament structure is locked.'); const { courts, ...venueInput } = input; const venue = await prisma.$transaction(async (tx) => { const item = await tx.venue.create({ data: { ...venueInput, tournamentId, courts: { create: courts.map((name) => ({ name })) } }, include: { courts: true } }); await tx.auditLog.create({ data: { userId: user.id, tournamentId, action: 'VENUE_CREATED', entityType: 'VENUE', entityId: item.id, newValue: { name: item.name } } }); return item; }); return created(venue); } catch (error) { return apiError(error); } }

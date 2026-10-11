@@ -1,0 +1,4 @@
+import { apiError, ok } from '@/lib/api';
+import { prisma } from '@/lib/prisma';
+import { calculateStandings } from '@/lib/standings';
+export async function GET(_: Request, { params }: { params: Promise<{ slug: string }> }) { try { const { slug } = await params; const tournament = await prisma.tournament.findFirst({ where: { slug, visibility: 'PUBLIC' }, select: { pointsForWin: true, pointsForDraw: true, pointsForLoss: true, teams: { select: { id: true, name: true, shortName: true, groupCode: true } }, matches: { select: { homeTeamId: true, awayTeamId: true, homeScore: true, awayScore: true, status: true } } } }); if (!tournament) return Response.json({ error: { code: 'NOT_FOUND', message: 'Public tournament not found.' } }, { status: 404 }); return ok(calculateStandings(tournament.teams, tournament.matches, { win: tournament.pointsForWin, draw: tournament.pointsForDraw, loss: tournament.pointsForLoss })); } catch (error) { return apiError(error); } }

@@ -1,5 +1,7 @@
-import App from '@/App';
+import { redirect } from 'next/navigation';
+import { auth } from '@/lib/auth';
 
-export default function HomePage() {
-  return <App initialView="organizer_dashboard" />;
+export default async function HomePage() {
+  const session = await auth();
+  redirect(session?.user?.id ? '/organizer/dashboard' : '/public');
 }

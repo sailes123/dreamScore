@@ -1,0 +1,5 @@
+import { z } from 'zod';
+import { apiError, ok } from '@/lib/api';
+import { prisma } from '@/lib/prisma';
+const querySchema = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(50).default(20), q: z.string().trim().max(100).optional() });
+export async function GET(request: Request) { try { const query = querySchema.parse(Object.fromEntries(new URL(request.url).searchParams)); const where = { visibility: 'PUBLIC' as const, ...(query.q ? { name: { contains: query.q, mode: 'insensitive' as const } } : {}) }; const [items, total] = await Promise.all([prisma.tournament.findMany({ where, select: { slug: true, name: true, description: true, sportCode: true, startAt: true, endAt: true, status: true }, orderBy: { startAt: 'asc' }, skip: (query.page - 1) * query.pageSize, take: query.pageSize }), prisma.tournament.count({ where })]); return ok({ items, total, page: query.page, pageSize: query.pageSize }); } catch (error) { return apiError(error); } }

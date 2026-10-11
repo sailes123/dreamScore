@@ -1,4 +1,6 @@
 import App from '@/App';
+import { requirePageUser } from '@/lib/page-access';
+import { redirect } from 'next/navigation';
 
 const views: Record<string, string> = {
   dashboard: 'organizer_dashboard', teams: 'organizer_teams', players: 'organizer_players',
@@ -8,6 +10,11 @@ const views: Record<string, string> = {
 };
 
 export default async function OrganizerPage({ params }: { params: Promise<{ view: string }> }) {
+  await requirePageUser();
   const { view } = await params;
+  if (view === 'dashboard') redirect('/organizer/dashboard');
+  if (view === 'standings') redirect('/organizer/standings');
+  if (view === 'match-control') redirect('/organizer/match-control');
+  if (view === 'purchase') redirect('/organizer/purchase');
   return <App initialView={views[view] ?? 'organizer_dashboard'} />;
 }

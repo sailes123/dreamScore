@@ -6,11 +6,11 @@ ArenaOps is a Next.js tournament-management platform backed by PostgreSQL and Pr
 
 1. Copy `.env.example` to `.env` and set a secure `AUTH_SECRET`.
 2. Start Docker Desktop, then run `docker compose up -d`.
-3. Run `npm run db:migrate -- --name initial_schema` to create and apply the first migration.
+3. Run `npm run db:deploy` to apply the committed initial migration.
 4. Run `npm run db:seed` to create local reference data and the development admin.
 5. Run `npm run dev`, then open `http://localhost:3000`.
 
-The seeded development account is `admin@arenaops.local` with password `ChangeMe123!`. Do not use it outside local development.
+The seeded development account is `admin@arenaops.local` with password `ChangeMe123!` only when `SEED_ADMIN_PASSWORD` is absent. Set `SEED_ADMIN_PASSWORD` to a strong value and rerun `npm run db:seed` before using any non-local database.
 
 ## Commands
 

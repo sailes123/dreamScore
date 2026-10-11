@@ -1,0 +1,80 @@
+-- Initial PostgreSQL schema generated from prisma/schema.prisma.
+-- Apply with: npm run db:deploy
+
+CREATE SCHEMA IF NOT EXISTS "public";
+
+CREATE TYPE "SystemRole" AS ENUM ('PLATFORM_ADMIN', 'ORGANIZER', 'PUBLIC');
+CREATE TYPE "MembershipRole" AS ENUM ('OWNER', 'MANAGER');
+CREATE TYPE "MembershipStatus" AS ENUM ('ACTIVE', 'INVITED');
+CREATE TYPE "TournamentStatus" AS ENUM ('DRAFT', 'PREPARATION', 'LIVE', 'ENDED', 'RETENTION_GRACE', 'ARCHIVED');
+CREATE TYPE "TournamentVisibility" AS ENUM ('PUBLIC', 'PRIVATE');
+CREATE TYPE "TournamentFormat" AS ENUM ('ROUND_ROBIN', 'KNOCKOUT', 'GROUP_STAGE_KNOCKOUT');
+CREATE TYPE "RegistrationStatus" AS ENUM ('DRAFT', 'REGISTERED', 'CONFIRMED', 'WITHDRAWN', 'DISQUALIFIED');
+CREATE TYPE "TeamPaymentStatus" AS ENUM ('UNPAID', 'PARTIALLY_PAID', 'PAID', 'WAIVED');
+CREATE TYPE "PaymentMethod" AS ENUM ('CASH', 'BANK_TRANSFER', 'DIGITAL_WALLET', 'OTHER');
+CREATE TYPE "MatchStatus" AS ENUM ('SCHEDULED', 'READY', 'LIVE', 'HALFTIME', 'COMPLETED', 'POSTPONED', 'CANCELLED');
+CREATE TYPE "MatchStage" AS ENUM ('GROUP_STAGE', 'QUARTER_FINAL', 'SEMI_FINAL', 'THIRD_PLACE', 'FINAL');
+CREATE TYPE "PackageDuration" AS ENUM ('THREE_DAYS', 'ONE_WEEK', 'ONE_MONTH', 'TWO_MONTHS', 'ONE_YEAR');
+CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'PAID', 'REJECTED', 'CANCELLED', 'REFUNDED');
+CREATE TYPE "ApprovalStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
+CREATE TYPE "ExportEmailStatus" AS ENUM ('PENDING', 'SENT', 'FAILED');
+
+CREATE TABLE "User" ("id" TEXT NOT NULL,"email" TEXT NOT NULL,"name" TEXT NOT NULL,"passwordHash" TEXT NOT NULL,"role" "SystemRole" NOT NULL DEFAULT 'ORGANIZER',"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL,CONSTRAINT "User_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "SportConfiguration" ("id" TEXT NOT NULL,"code" TEXT NOT NULL,"name" TEXT NOT NULL,"playersOnField" INTEGER NOT NULL,"maxSquadSize" INTEGER NOT NULL,"defaultMatchDurationMinutes" INTEGER NOT NULL,"periods" INTEGER NOT NULL,"periodName" TEXT NOT NULL,"extraTimeMinutes" INTEGER NOT NULL DEFAULT 0,"hasPenalties" BOOLEAN NOT NULL DEFAULT false,"scoringType" TEXT NOT NULL,"availableEventTypes" TEXT[],"pointsForWin" INTEGER NOT NULL DEFAULT 3,"pointsForDraw" INTEGER NOT NULL DEFAULT 1,"pointsForLoss" INTEGER NOT NULL DEFAULT 0,CONSTRAINT "SportConfiguration_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "Tournament" ("id" TEXT NOT NULL,"slug" TEXT NOT NULL,"name" TEXT NOT NULL,"description" TEXT NOT NULL,"sportCode" TEXT NOT NULL,"visibility" "TournamentVisibility" NOT NULL DEFAULT 'PUBLIC',"invitationCode" TEXT,"startAt" TIMESTAMP(3) NOT NULL,"endAt" TIMESTAMP(3) NOT NULL,"timezone" TEXT NOT NULL,"status" "TournamentStatus" NOT NULL DEFAULT 'DRAFT',"ownerId" TEXT NOT NULL,"format" "TournamentFormat" NOT NULL,"numberOfTeams" INTEGER NOT NULL,"groupsCount" INTEGER NOT NULL DEFAULT 0,"pointsForWin" INTEGER NOT NULL DEFAULT 3,"pointsForDraw" INTEGER NOT NULL DEFAULT 1,"pointsForLoss" INTEGER NOT NULL DEFAULT 0,"matchDurationMinutes" INTEGER NOT NULL,"periods" INTEGER NOT NULL,"teamRegistrationFee" DECIMAL(12,2) NOT NULL DEFAULT 0,"currency" TEXT NOT NULL DEFAULT 'NPR',"registrationOpenAt" TIMESTAMP(3),"registrationCloseAt" TIMESTAMP(3),"maxTeams" INTEGER NOT NULL,"metadata" JSONB,"structureLockedAt" TIMESTAMP(3),"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL,CONSTRAINT "Tournament_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "Venue" ("id" TEXT NOT NULL,"tournamentId" TEXT NOT NULL,"name" TEXT NOT NULL,"address" TEXT NOT NULL,"city" TEXT NOT NULL,"country" TEXT NOT NULL,"directions" TEXT,CONSTRAINT "Venue_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "Court" ("id" TEXT NOT NULL,"venueId" TEXT NOT NULL,"name" TEXT NOT NULL,CONSTRAINT "Court_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "TournamentMember" ("id" TEXT NOT NULL,"tournamentId" TEXT NOT NULL,"userId" TEXT NOT NULL,"role" "MembershipRole" NOT NULL,"status" "MembershipStatus" NOT NULL DEFAULT 'INVITED',"joinedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,CONSTRAINT "TournamentMember_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "Team" ("id" TEXT NOT NULL,"tournamentId" TEXT NOT NULL,"name" TEXT NOT NULL,"shortName" TEXT NOT NULL,"groupCode" TEXT,"logoText" TEXT,"primaryColor" TEXT NOT NULL,"secondaryColor" TEXT NOT NULL,"managerName" TEXT NOT NULL,"managerPhone" TEXT NOT NULL,"managerEmail" TEXT NOT NULL,"registrationStatus" "RegistrationStatus" NOT NULL DEFAULT 'DRAFT',"registrationDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"notes" TEXT,"registrationFee" DECIMAL(12,2) NOT NULL,"amountReceived" DECIMAL(12,2) NOT NULL DEFAULT 0,"paymentStatus" "TeamPaymentStatus" NOT NULL DEFAULT 'UNPAID',"paymentMethod" "PaymentMethod","paymentReference" TEXT,CONSTRAINT "Team_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "Player" ("id" TEXT NOT NULL,"teamId" TEXT NOT NULL,"tournamentId" TEXT NOT NULL,"firstName" TEXT NOT NULL,"lastName" TEXT NOT NULL,"displayName" TEXT NOT NULL,"jerseyNumber" INTEGER NOT NULL,"position" TEXT NOT NULL,"isCaptain" BOOLEAN NOT NULL DEFAULT false,"isGoalkeeper" BOOLEAN NOT NULL DEFAULT false,"dateOfBirth" DATE,"nationality" TEXT,"notes" TEXT,CONSTRAINT "Player_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "Match" ("id" TEXT NOT NULL,"tournamentId" TEXT NOT NULL,"matchNumber" INTEGER NOT NULL,"stage" "MatchStage" NOT NULL,"roundName" TEXT NOT NULL,"groupCode" TEXT,"homeTeamId" TEXT,"awayTeamId" TEXT,"venueName" TEXT NOT NULL,"courtName" TEXT NOT NULL,"scheduledAt" TIMESTAMP(3) NOT NULL,"actualStart" TIMESTAMP(3),"actualEnd" TIMESTAMP(3),"homeScore" INTEGER NOT NULL DEFAULT 0,"awayScore" INTEGER NOT NULL DEFAULT 0,"status" "MatchStatus" NOT NULL DEFAULT 'SCHEDULED',"currentPeriod" INTEGER,"currentMinute" INTEGER,"refereeNotes" TEXT,CONSTRAINT "Match_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "MatchEvent" ("id" TEXT NOT NULL,"matchId" TEXT NOT NULL,"tournamentId" TEXT NOT NULL,"teamId" TEXT NOT NULL,"playerId" TEXT,"secondaryPlayerId" TEXT,"eventType" TEXT NOT NULL,"minute" INTEGER NOT NULL,"period" TEXT NOT NULL,"additionalTime" INTEGER,"notes" TEXT,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,CONSTRAINT "MatchEvent_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "TournamentPackage" ("id" TEXT NOT NULL,"name" TEXT NOT NULL,"duration" "PackageDuration" NOT NULL,"maxDays" INTEGER NOT NULL,"description" TEXT NOT NULL,"displayOrder" INTEGER NOT NULL,CONSTRAINT "TournamentPackage_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "TournamentPackagePrice" ("id" TEXT NOT NULL,"packageId" TEXT NOT NULL,"version" INTEGER NOT NULL,"price" DECIMAL(12,2) NOT NULL,"currency" TEXT NOT NULL,"effectiveFrom" TIMESTAMP(3) NOT NULL,"effectiveUntil" TIMESTAMP(3),"status" TEXT NOT NULL DEFAULT 'ACTIVE',"createdBy" TEXT NOT NULL,"notes" TEXT,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,CONSTRAINT "TournamentPackagePrice_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "TournamentPurchase" ("id" TEXT NOT NULL,"purchaserUserId" TEXT NOT NULL,"tournamentId" TEXT,"packageId" TEXT NOT NULL,"packagePriceId" TEXT NOT NULL,"packageNameSnapshot" TEXT NOT NULL,"packageDurationSnapshot" TEXT NOT NULL,"priceSnapshot" DECIMAL(12,2) NOT NULL,"currencySnapshot" TEXT NOT NULL,"purchasedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"paymentStatus" "PaymentStatus" NOT NULL DEFAULT 'PENDING',"approvalStatus" "ApprovalStatus" NOT NULL DEFAULT 'PENDING',"paymentMethod" "PaymentMethod" NOT NULL,"paymentReference" TEXT NOT NULL,"paymentNotes" TEXT,"verifiedById" TEXT,"verifiedAt" TIMESTAMP(3),"invoiceNumber" TEXT,CONSTRAINT "TournamentPurchase_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "TournamentExport" ("id" TEXT NOT NULL,"tournamentId" TEXT NOT NULL,"filename" TEXT NOT NULL,"fileSizeBytes" INTEGER NOT NULL,"generatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"emailSentTo" TEXT NOT NULL,"emailSentAt" TIMESTAMP(3),"emailStatus" "ExportEmailStatus" NOT NULL DEFAULT 'PENDING',"retryCount" INTEGER NOT NULL DEFAULT 0,"errorMessage" TEXT,"purgedAt" TIMESTAMP(3),CONSTRAINT "TournamentExport_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "ArchivedTournament" ("id" TEXT NOT NULL,"tournamentId" TEXT NOT NULL,"name" TEXT NOT NULL,"sportType" TEXT NOT NULL,"archivedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"totalTeams" INTEGER NOT NULL,"totalMatches" INTEGER NOT NULL,"totalGoals" INTEGER NOT NULL,"exportRecordFilename" TEXT NOT NULL,CONSTRAINT "ArchivedTournament_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "AuditLog" ("id" TEXT NOT NULL,"timestamp" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"userId" TEXT NOT NULL,"action" TEXT NOT NULL,"entityType" TEXT NOT NULL,"entityId" TEXT NOT NULL,"tournamentId" TEXT,"oldValue" JSONB,"newValue" JSONB,"metadata" JSONB,CONSTRAINT "AuditLog_pkey" PRIMARY KEY ("id"));
+
+CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+CREATE UNIQUE INDEX "SportConfiguration_code_key" ON "SportConfiguration"("code");
+CREATE UNIQUE INDEX "Tournament_slug_key" ON "Tournament"("slug");
+CREATE INDEX "Tournament_ownerId_status_idx" ON "Tournament"("ownerId", "status");
+CREATE UNIQUE INDEX "Court_venueId_name_key" ON "Court"("venueId", "name");
+CREATE UNIQUE INDEX "TournamentMember_tournamentId_userId_key" ON "TournamentMember"("tournamentId", "userId");
+CREATE UNIQUE INDEX "Team_tournamentId_name_key" ON "Team"("tournamentId", "name");
+CREATE INDEX "Player_tournamentId_idx" ON "Player"("tournamentId");
+CREATE UNIQUE INDEX "Player_teamId_jerseyNumber_key" ON "Player"("teamId", "jerseyNumber");
+CREATE INDEX "Match_tournamentId_status_scheduledAt_idx" ON "Match"("tournamentId", "status", "scheduledAt");
+CREATE UNIQUE INDEX "Match_tournamentId_matchNumber_key" ON "Match"("tournamentId", "matchNumber");
+CREATE INDEX "MatchEvent_matchId_createdAt_idx" ON "MatchEvent"("matchId", "createdAt");
+CREATE UNIQUE INDEX "TournamentPackagePrice_packageId_version_key" ON "TournamentPackagePrice"("packageId", "version");
+CREATE UNIQUE INDEX "TournamentPurchase_invoiceNumber_key" ON "TournamentPurchase"("invoiceNumber");
+CREATE INDEX "TournamentPurchase_purchaserUserId_paymentStatus_idx" ON "TournamentPurchase"("purchaserUserId", "paymentStatus");
+CREATE UNIQUE INDEX "ArchivedTournament_tournamentId_key" ON "ArchivedTournament"("tournamentId");
+CREATE INDEX "AuditLog_tournamentId_timestamp_idx" ON "AuditLog"("tournamentId", "timestamp");
+
+ALTER TABLE "Tournament" ADD CONSTRAINT "Tournament_sportCode_fkey" FOREIGN KEY ("sportCode") REFERENCES "SportConfiguration"("code") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Tournament" ADD CONSTRAINT "Tournament_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Venue" ADD CONSTRAINT "Venue_tournamentId_fkey" FOREIGN KEY ("tournamentId") REFERENCES "Tournament"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Court" ADD CONSTRAINT "Court_venueId_fkey" FOREIGN KEY ("venueId") REFERENCES "Venue"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "TournamentMember" ADD CONSTRAINT "TournamentMember_tournamentId_fkey" FOREIGN KEY ("tournamentId") REFERENCES "Tournament"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "TournamentMember" ADD CONSTRAINT "TournamentMember_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Team" ADD CONSTRAINT "Team_tournamentId_fkey" FOREIGN KEY ("tournamentId") REFERENCES "Tournament"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Player" ADD CONSTRAINT "Player_teamId_fkey" FOREIGN KEY ("teamId") REFERENCES "Team"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Match" ADD CONSTRAINT "Match_tournamentId_fkey" FOREIGN KEY ("tournamentId") REFERENCES "Tournament"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Match" ADD CONSTRAINT "Match_homeTeamId_fkey" FOREIGN KEY ("homeTeamId") REFERENCES "Team"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Match" ADD CONSTRAINT "Match_awayTeamId_fkey" FOREIGN KEY ("awayTeamId") REFERENCES "Team"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "MatchEvent" ADD CONSTRAINT "MatchEvent_matchId_fkey" FOREIGN KEY ("matchId") REFERENCES "Match"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "MatchEvent" ADD CONSTRAINT "MatchEvent_teamId_fkey" FOREIGN KEY ("teamId") REFERENCES "Team"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "MatchEvent" ADD CONSTRAINT "MatchEvent_playerId_fkey" FOREIGN KEY ("playerId") REFERENCES "Player"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "MatchEvent" ADD CONSTRAINT "MatchEvent_secondaryPlayerId_fkey" FOREIGN KEY ("secondaryPlayerId") REFERENCES "Player"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "TournamentPackagePrice" ADD CONSTRAINT "TournamentPackagePrice_packageId_fkey" FOREIGN KEY ("packageId") REFERENCES "TournamentPackage"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "TournamentPurchase" ADD CONSTRAINT "TournamentPurchase_purchaserUserId_fkey" FOREIGN KEY ("purchaserUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "TournamentPurchase" ADD CONSTRAINT "TournamentPurchase_verifiedById_fkey" FOREIGN KEY ("verifiedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "TournamentPurchase" ADD CONSTRAINT "TournamentPurchase_tournamentId_fkey" FOREIGN KEY ("tournamentId") REFERENCES "Tournament"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "TournamentPurchase" ADD CONSTRAINT "TournamentPurchase_packageId_fkey" FOREIGN KEY ("packageId") REFERENCES "TournamentPackage"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "TournamentExport" ADD CONSTRAINT "TournamentExport_tournamentId_fkey" FOREIGN KEY ("tournamentId") REFERENCES "Tournament"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ArchivedTournament" ADD CONSTRAINT "ArchivedTournament_tournamentId_fkey" FOREIGN KEY ("tournamentId") REFERENCES "Tournament"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_tournamentId_fkey" FOREIGN KEY ("tournamentId") REFERENCES "Tournament"("id") ON DELETE SET NULL ON UPDATE CASCADE;

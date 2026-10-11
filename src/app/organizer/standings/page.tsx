@@ -1,0 +1,14 @@
+import Link from 'next/link';
+import { prisma } from '@/lib/prisma';
+import { requirePageUser } from '@/lib/page-access';
+import { calculateStandings } from '@/lib/standings';
+
+export const dynamic = 'force-dynamic';
+
+export default async function OrganizerStandingsPage({ searchParams }: { searchParams: Promise<{ tournament?: string }> }) {
+  const user = await requirePageUser(); const { tournament: selectedId } = await searchParams;
+  const tournaments = await prisma.tournament.findMany({ where: { OR: [{ ownerId: user.id }, { members: { some: { userId: user.id, status: 'ACTIVE' } } }] }, select: { id: true, name: true, pointsForWin: true, pointsForDraw: true, pointsForLoss: true, teams: { select: { id: true, name: true, shortName: true, groupCode: true } }, matches: { select: { homeTeamId: true, awayTeamId: true, homeScore: true, awayScore: true, status: true } } }, orderBy: { createdAt: 'desc' } });
+  const tournament = (selectedId ? tournaments.find((item) => item.id === selectedId) : undefined) ?? tournaments[0];
+  const standings = tournament ? calculateStandings(tournament.teams, tournament.matches, { win: tournament.pointsForWin, draw: tournament.pointsForDraw, loss: tournament.pointsForLoss }) : [];
+  return <main className="mx-auto max-w-6xl p-6"><Link href="/organizer/dashboard" className="text-emerald-700 underline">Dashboard</Link><h1 className="mt-4 text-3xl font-bold">Standings</h1><div className="mt-4 flex flex-wrap gap-2">{tournaments.map((item) => <Link key={item.id} href={`/organizer/standings?tournament=${item.id}`} className={`rounded px-3 py-2 text-sm ${item.id === tournament?.id ? 'bg-emerald-700 text-white' : 'bg-slate-200'}`}>{item.name}</Link>)}</div>{tournament ? <section className="mt-6 overflow-x-auto rounded-xl border bg-white"><table className="min-w-full text-left text-sm"><thead className="bg-slate-50"><tr><th className="p-3">#</th><th className="p-3">Team</th><th className="p-3">P</th><th className="p-3">W</th><th className="p-3">D</th><th className="p-3">L</th><th className="p-3">GF</th><th className="p-3">GA</th><th className="p-3">GD</th><th className="p-3">Pts</th></tr></thead><tbody>{standings.map((team, index) => <tr className="border-t" key={team.id}><td className="p-3">{index + 1}</td><td className="p-3 font-medium">{team.name}</td><td className="p-3">{team.played}</td><td className="p-3">{team.won}</td><td className="p-3">{team.drawn}</td><td className="p-3">{team.lost}</td><td className="p-3">{team.goalsFor}</td><td className="p-3">{team.goalsAgainst}</td><td className="p-3">{team.goalDifference}</td><td className="p-3 font-semibold">{team.points}</td></tr>)}{!standings.length && <tr><td colSpan={10} className="p-5 text-slate-600">No teams registered yet.</td></tr>}</tbody></table></section> : <p className="mt-6 text-slate-600">Create a tournament first.</p>}</main>;
+}
