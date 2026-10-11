@@ -1,0 +1,13 @@
+import App from '@/App';
+
+const views: Record<string, string> = {
+  dashboard: 'organizer_dashboard', teams: 'organizer_teams', players: 'organizer_players',
+  fixtures: 'organizer_fixtures', 'match-control': 'organizer_match_control', standings: 'organizer_standings',
+  statistics: 'organizer_statistics', payments: 'organizer_registration_payments', export: 'organizer_export',
+  settings: 'organizer_settings', history: 'organizer_history', purchase: 'purchase_package', setup: 'tournament_setup_wizard',
+};
+
+export default async function OrganizerPage({ params }: { params: Promise<{ view: string }> }) {
+  const { view } = await params;
+  return <App initialView={views[view] ?? 'organizer_dashboard'} />;
+}

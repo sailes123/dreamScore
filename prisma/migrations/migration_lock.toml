@@ -1,0 +1,2 @@
+# Do not edit manually. Prisma Migrate uses this to ensure all migrations target PostgreSQL.
+provider = "postgresql"

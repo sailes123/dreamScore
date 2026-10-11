@@ -1,0 +1,425 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SystemRole {
+  PLATFORM_ADMIN
+  ORGANIZER
+  PUBLIC
+}
+
+enum MembershipRole {
+  OWNER
+  MANAGER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+}
+
+enum TournamentStatus {
+  DRAFT
+  PREPARATION
+  LIVE
+  ENDED
+  RETENTION_GRACE
+  ARCHIVED
+}
+
+enum TournamentVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum TournamentFormat {
+  ROUND_ROBIN
+  KNOCKOUT
+  GROUP_STAGE_KNOCKOUT
+}
+
+enum RegistrationStatus {
+  DRAFT
+  REGISTERED
+  CONFIRMED
+  WITHDRAWN
+  DISQUALIFIED
+}
+
+enum TeamPaymentStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  WAIVED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  DIGITAL_WALLET
+  OTHER
+}
+
+enum MatchStatus {
+  SCHEDULED
+  READY
+  LIVE
+  HALFTIME
+  COMPLETED
+  POSTPONED
+  CANCELLED
+}
+
+enum MatchStage {
+  GROUP_STAGE
+  QUARTER_FINAL
+  SEMI_FINAL
+  THIRD_PLACE
+  FINAL
+}
+
+enum PackageDuration {
+  THREE_DAYS
+  ONE_WEEK
+  ONE_MONTH
+  TWO_MONTHS
+  ONE_YEAR
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REJECTED
+  CANCELLED
+  REFUNDED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ExportEmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model User {
+  id                String               @id @default(cuid())
+  email             String               @unique
+  name              String
+  passwordHash      String
+  role              SystemRole           @default(ORGANIZER)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  ownedTournaments  Tournament[]         @relation("TournamentOwner")
+  memberships       TournamentMember[]
+  purchases         TournamentPurchase[]
+  verifiedPurchases TournamentPurchase[] @relation("PurchaseVerifier")
+  auditLogs         AuditLog[]
+}
+
+model SportConfiguration {
+  id                          String       @id @default(cuid())
+  code                        String       @unique
+  name                        String
+  playersOnField              Int
+  maxSquadSize                Int
+  defaultMatchDurationMinutes Int
+  periods                     Int
+  periodName                  String
+  extraTimeMinutes            Int          @default(0)
+  hasPenalties                Boolean      @default(false)
+  scoringType                 String
+  availableEventTypes         String[]
+  pointsForWin                Int          @default(3)
+  pointsForDraw               Int          @default(1)
+  pointsForLoss               Int          @default(0)
+  tournaments                 Tournament[]
+}
+
+model Tournament {
+  id                   String               @id @default(cuid())
+  slug                 String               @unique
+  name                 String
+  description          String               @db.Text
+  sportCode            String
+  sport                SportConfiguration   @relation(fields: [sportCode], references: [code])
+  visibility           TournamentVisibility @default(PUBLIC)
+  invitationCode       String?
+  startAt              DateTime
+  endAt                DateTime
+  timezone             String
+  status               TournamentStatus     @default(DRAFT)
+  ownerId              String
+  owner                User                 @relation("TournamentOwner", fields: [ownerId], references: [id])
+  format               TournamentFormat
+  numberOfTeams        Int
+  groupsCount          Int                  @default(0)
+  pointsForWin         Int                  @default(3)
+  pointsForDraw        Int                  @default(1)
+  pointsForLoss        Int                  @default(0)
+  matchDurationMinutes Int
+  periods              Int
+  teamRegistrationFee  Decimal              @default(0) @db.Decimal(12, 2)
+  currency             String               @default("NPR")
+  registrationOpenAt   DateTime?
+  registrationCloseAt  DateTime?
+  maxTeams             Int
+  metadata             Json?
+  structureLockedAt    DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  venues               Venue[]
+  members              TournamentMember[]
+  teams                Team[]
+  matches              Match[]
+  purchases            TournamentPurchase[]
+  exports              TournamentExport[]
+  auditLogs            AuditLog[]
+  archivedRecord       ArchivedTournament?
+
+  @@index([ownerId, status])
+}
+
+model Venue {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  name         String
+  address      String
+  city         String
+  country      String
+  directions   String?
+  courts       Court[]
+}
+
+model Court {
+  id      String @id @default(cuid())
+  venueId String
+  venue   Venue  @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  name    String
+
+  @@unique([venueId, name])
+}
+
+model TournamentMember {
+  id           String           @id @default(cuid())
+  tournamentId String
+  userId       String
+  role         MembershipRole
+  status       MembershipStatus @default(INVITED)
+  joinedAt     DateTime         @default(now())
+  tournament   Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, userId])
+}
+
+model Team {
+  id                 String             @id @default(cuid())
+  tournamentId       String
+  name               String
+  shortName          String
+  groupCode          String?
+  logoText           String?
+  primaryColor       String
+  secondaryColor     String
+  managerName        String
+  managerPhone       String
+  managerEmail       String
+  registrationStatus RegistrationStatus @default(DRAFT)
+  registrationDate   DateTime           @default(now())
+  notes              String?            @db.Text
+  registrationFee    Decimal            @db.Decimal(12, 2)
+  amountReceived     Decimal            @default(0) @db.Decimal(12, 2)
+  paymentStatus      TeamPaymentStatus  @default(UNPAID)
+  paymentMethod      PaymentMethod?
+  paymentReference   String?
+  tournament         Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  players            Player[]
+  homeMatches        Match[]            @relation("HomeTeam")
+  awayMatches        Match[]            @relation("AwayTeam")
+  events             MatchEvent[]
+
+  @@unique([tournamentId, name])
+}
+
+model Player {
+  id              String       @id @default(cuid())
+  teamId          String
+  tournamentId    String
+  firstName       String
+  lastName        String
+  displayName     String
+  jerseyNumber    Int
+  position        String
+  isCaptain       Boolean      @default(false)
+  isGoalkeeper    Boolean      @default(false)
+  dateOfBirth     DateTime?    @db.Date
+  nationality     String?
+  notes           String?      @db.Text
+  team            Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  events          MatchEvent[] @relation("PrimaryPlayer")
+  secondaryEvents MatchEvent[] @relation("SecondaryPlayer")
+
+  @@unique([teamId, jerseyNumber])
+  @@index([tournamentId])
+}
+
+model Match {
+  id            String       @id @default(cuid())
+  tournamentId  String
+  matchNumber   Int
+  stage         MatchStage
+  roundName     String
+  groupCode     String?
+  homeTeamId    String?
+  awayTeamId    String?
+  venueName     String
+  courtName     String
+  scheduledAt   DateTime
+  actualStart   DateTime?
+  actualEnd     DateTime?
+  homeScore     Int          @default(0)
+  awayScore     Int          @default(0)
+  status        MatchStatus  @default(SCHEDULED)
+  currentPeriod Int?
+  currentMinute Int?
+  refereeNotes  String?      @db.Text
+  tournament    Tournament   @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  homeTeam      Team?        @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam      Team?        @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  events        MatchEvent[]
+
+  @@unique([tournamentId, matchNumber])
+  @@index([tournamentId, status, scheduledAt])
+}
+
+model MatchEvent {
+  id                String   @id @default(cuid())
+  matchId           String
+  tournamentId      String
+  teamId            String
+  playerId          String?
+  secondaryPlayerId String?
+  eventType         String
+  minute            Int
+  period            String
+  additionalTime    Int?
+  notes             String?  @db.Text
+  createdAt         DateTime @default(now())
+  match             Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  team              Team     @relation(fields: [teamId], references: [id])
+  player            Player?  @relation("PrimaryPlayer", fields: [playerId], references: [id])
+  secondaryPlayer   Player?  @relation("SecondaryPlayer", fields: [secondaryPlayerId], references: [id])
+
+  @@index([matchId, createdAt])
+}
+
+model TournamentPackage {
+  id           String                   @id @default(cuid())
+  name         String
+  duration     PackageDuration
+  maxDays      Int
+  description  String
+  displayOrder Int
+  prices       TournamentPackagePrice[]
+  purchases    TournamentPurchase[]
+}
+
+model TournamentPackagePrice {
+  id             String            @id @default(cuid())
+  packageId      String
+  version        Int
+  price          Decimal           @db.Decimal(12, 2)
+  currency       String
+  effectiveFrom  DateTime
+  effectiveUntil DateTime?
+  status         String            @default("ACTIVE")
+  createdBy      String
+  notes          String?
+  createdAt      DateTime          @default(now())
+  package        TournamentPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, version])
+}
+
+model TournamentPurchase {
+  id                      String            @id @default(cuid())
+  purchaserUserId         String
+  tournamentId            String?
+  packageId               String
+  packagePriceId          String
+  packageNameSnapshot     String
+  packageDurationSnapshot String
+  priceSnapshot           Decimal           @db.Decimal(12, 2)
+  currencySnapshot        String
+  purchasedAt             DateTime          @default(now())
+  paymentStatus           PaymentStatus     @default(PENDING)
+  approvalStatus          ApprovalStatus    @default(PENDING)
+  paymentMethod           PaymentMethod
+  paymentReference        String
+  paymentNotes            String?           @db.Text
+  verifiedById            String?
+  verifiedAt              DateTime?
+  invoiceNumber           String?           @unique
+  purchaser               User              @relation(fields: [purchaserUserId], references: [id])
+  verifier                User?             @relation("PurchaseVerifier", fields: [verifiedById], references: [id])
+  tournament              Tournament?       @relation(fields: [tournamentId], references: [id])
+  package                 TournamentPackage @relation(fields: [packageId], references: [id])
+
+  @@index([purchaserUserId, paymentStatus])
+}
+
+model TournamentExport {
+  id            String            @id @default(cuid())
+  tournamentId  String
+  filename      String
+  fileSizeBytes Int
+  generatedAt   DateTime          @default(now())
+  emailSentTo   String
+  emailSentAt   DateTime?
+  emailStatus   ExportEmailStatus @default(PENDING)
+  retryCount    Int               @default(0)
+  errorMessage  String?           @db.Text
+  purgedAt      DateTime?
+  tournament    Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+}
+
+model ArchivedTournament {
+  id                   String     @id @default(cuid())
+  tournamentId         String     @unique
+  name                 String
+  sportType            String
+  archivedAt           DateTime   @default(now())
+  totalTeams           Int
+  totalMatches         Int
+  totalGoals           Int
+  exportRecordFilename String
+  tournament           Tournament @relation(fields: [tournamentId], references: [id])
+}
+
+model AuditLog {
+  id           String      @id @default(cuid())
+  timestamp    DateTime    @default(now())
+  userId       String
+  action       String
+  entityType   String
+  entityId     String
+  tournamentId String?
+  oldValue     Json?
+  newValue     Json?
+  metadata     Json?
+  user         User        @relation(fields: [userId], references: [id])
+  tournament   Tournament? @relation(fields: [tournamentId], references: [id])
+
+  @@index([tournamentId, timestamp])
+}
