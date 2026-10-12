@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ZodError, type ZodType } from 'zod';
 import { Prisma } from '@prisma/client';
+import { logError } from '@/lib/logger';
 
 export class ApiError extends Error {
   constructor(public readonly status: number, public readonly code: string, message: string) {
@@ -18,7 +19,7 @@ export function apiError(error: unknown) {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
     return NextResponse.json({ error: { code: 'CONFLICT', message: 'A record with those values already exists.' } }, { status: 409 });
   }
-  console.error('Unhandled API error', error);
+  logError('api.unhandled_error', error);
   return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred.' } }, { status: 500 });
 }
 

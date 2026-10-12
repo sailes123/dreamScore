@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { Prisma, SystemRole } from '@prisma/client';
 import { apiError, created, parseJson } from '@/lib/api';
 import { prisma } from '@/lib/prisma';
+import { enforceRateLimit } from '@/lib/rate-limit';
 
 const registrationSchema = z.object({
   name: z.string().trim().min(2).max(100),
@@ -12,6 +13,7 @@ const registrationSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    enforceRateLimit(request, 'registration', 10, 60 * 60 * 1000);
     const input = await parseJson(request, registrationSchema);
     const { password, ...userInput } = input;
     const passwordHash = await hash(password, 12);
